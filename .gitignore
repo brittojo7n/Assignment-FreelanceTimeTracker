@@ -1,5 +1,7 @@
-venv/
-.env
-activity_log.txt
-invoices/
-__pycache__/
+/venv/
+/.env
+/activity_log.txt
+/invoices/
+/__pycache__/
+/time_entries/
+/time_entries/

@@ -36,7 +36,7 @@ class UIManager:
             elif choice == '5':
                 self.reporter.analyze_data()
             elif choice == '6':
-                print("Exiting. Goodbye!")
+                print("Exiting...")
                 break
             else:
                 print("Invalid choice. Please try again.")
