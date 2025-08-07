@@ -88,6 +88,7 @@ class Reporter:
                 return
             
             time_entries = [{'task': e[0], 'start_time': e[1], 'end_time': e[2], 'duration_hours': float(e[3])} for e in entries_data]
+            
             self.file_handler.export_invoice_to_csv(project_details, client_name, time_entries)
 
         except (Exception, psycopg2.Error) as error:

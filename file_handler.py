@@ -30,12 +30,16 @@ class FileHandler:
         try:
             with open(file_path, 'w', newline='') as csvfile:
                 writer = csv.writer(csvfile)
-                writer.writerow(['Invoice for Project:', project_details['name']])
-                writer.writerow(['Client:', client_name])
-                writer.writerow(['Date:', datetime.now().strftime('%Y-%m-%d')])
-                writer.writerow(['Hourly Rate:', f"${project_details['hourly_rate']:.2f}"])
-                writer.writerow([])
+                
+                # --- Header Section ---
+                writer.writerow(['Project Name', project_details['name'], '', '', ''])
+                writer.writerow(['Client', client_name, '', '', ''])
+                writer.writerow(['Invoice Date', datetime.now().strftime('%Y-%m-%d'), '', '', ''])
+                writer.writerow(['Hourly Rate', f"${project_details['hourly_rate']:.2f}", '', '', ''])
+                
+                # --- Data Table Section ---
                 writer.writerow(['Task Description', 'Start Time', 'End Time', 'Duration (Hours)', 'Cost'])
+                
                 for entry in time_entries:
                     cost = entry['duration_hours'] * project_details['hourly_rate']
                     writer.writerow([
@@ -43,11 +47,12 @@ class FileHandler:
                         entry['start_time'].strftime('%Y-%m-%d %H:%M'),
                         entry['end_time'].strftime('%Y-%m-%d %H:%M'),
                         f"{entry['duration_hours']:.2f}",
-                        f"${cost:.2f}"
+                        f"{cost:.2f}"
                     ])
-                writer.writerow([])
-                writer.writerow(['', '', 'Total Hours:', f"{total_hours:.2f}"])
-                writer.writerow(['', '', 'Total Cost:', f"${total_cost:.2f}"])
+                
+                # --- Summary Section ---
+                writer.writerow(['', '', '', 'Total Hours:', f"{total_hours:.2f}"])
+                writer.writerow(['', '', '', 'Total Cost:', f"${total_cost:.2f}"])
             
             self.log_activity(f"Exported invoice for project '{project_details['name']}' to {file_path}")
             print(f"Invoice successfully exported to {file_path}")
