@@ -31,28 +31,41 @@ class FileHandler:
             with open(file_path, 'w', newline='') as csvfile:
                 writer = csv.writer(csvfile)
                 
-                # --- Header Section ---
-                writer.writerow(['Project Name', project_details['name'], '', '', ''])
-                writer.writerow(['Client', client_name, '', '', ''])
-                writer.writerow(['Invoice Date', datetime.now().strftime('%Y-%m-%d'), '', '', ''])
-                writer.writerow(['Hourly Rate', f"${project_details['hourly_rate']:.2f}", '', '', ''])
-                
-                # --- Data Table Section ---
-                writer.writerow(['Task Description', 'Start Time', 'End Time', 'Duration (Hours)', 'Cost'])
-                
+                header = [
+                    'Project Name', 'Client', 'Invoice Date', 'Hourly Rate', 
+                    'Task Description', 'Start Time', 'End Time', 
+                    'Duration (Hours)', 'Cost', 'Total Hours', 'Total Cost'
+                ]
+                writer.writerow(header)
+
+                project_info_row = [
+                    project_details['name'],
+                    client_name,
+                    datetime.now().strftime('%Y-%m-%d'),
+                    f"${project_details['hourly_rate']:.2f}",
+                    '', '', '', '', '', '', ''
+                ]
+                writer.writerow(project_info_row)
+
                 for entry in time_entries:
                     cost = entry['duration_hours'] * project_details['hourly_rate']
-                    writer.writerow([
+                    task_row = [
+                        '', '', '', '',
                         entry['task'],
                         entry['start_time'].strftime('%Y-%m-%d %H:%M'),
                         entry['end_time'].strftime('%Y-%m-%d %H:%M'),
                         f"{entry['duration_hours']:.2f}",
-                        f"{cost:.2f}"
-                    ])
+                        f"{cost:.2f}",
+                        '', ''
+                    ]
+                    writer.writerow(task_row)
                 
-                # --- Summary Section ---
-                writer.writerow(['', '', '', 'Total Hours:', f"{total_hours:.2f}"])
-                writer.writerow(['', '', '', 'Total Cost:', f"${total_cost:.2f}"])
+                totals_row = [
+                    '', '', '', '', '', '', '', '', '',
+                    f"{total_hours:.2f}",
+                    f"${total_cost:.2f}"
+                ]
+                writer.writerow(totals_row)
             
             self.log_activity(f"Exported invoice for project '{project_details['name']}' to {file_path}")
             print(f"Invoice successfully exported to {file_path}")
@@ -76,3 +89,4 @@ class FileHandler:
         except Exception as e:
             print(f"An unexpected error occurred while reading the file: {e}")
             return None
+        
