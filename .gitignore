@@ -1,0 +1,5 @@
+venv/
+.env
+activity_log.txt
+invoices/
+__pycache__/
