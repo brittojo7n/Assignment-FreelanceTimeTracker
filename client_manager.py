@@ -10,20 +10,23 @@ class ClientManager:
         self.db: Session = SessionLocal()
 
     def add_client(self):
-        client_name = input("Enter client name: ")
+        client_name = input("Enter client name: ").strip()
         new_client = Client(name=client_name)
-        try:
-            self.db.add(new_client)
-            self.db.commit()
-            self.db.refresh(new_client)
-            self.file_handler.log_activity(f"Added client: {client_name} with ID {new_client.id}")
-            print(f"Client '{client_name}' added successfully.")
-        except IntegrityError:
-            self.db.rollback()
-            print("Client with this name already exists.")
-        except Exception as e:
-            self.db.rollback()
-            print("Error while adding client:", e)
+        if client_name == "":
+            print("Invalid Name!")
+        else:
+            try:
+                self.db.add(new_client)
+                self.db.commit()
+                self.db.refresh(new_client)
+                self.file_handler.log_activity(f"Added client: {client_name} with ID {new_client.id}")
+                print(f"Client '{client_name}' added successfully.")
+            except IntegrityError:
+                self.db.rollback()
+                print("Client with this name already exists.")
+            except Exception as e:
+                self.db.rollback()
+                print("Error while adding client:", e)
 
     def list_clients(self):
         try:
