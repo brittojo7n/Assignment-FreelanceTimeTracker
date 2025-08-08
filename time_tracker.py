@@ -1,6 +1,7 @@
 from datetime import datetime
-import psycopg2
-from database import get_db_connection
+from sqlalchemy.orm import Session
+from database import SessionLocal
+from models import TimeEntry
 from project_manager import ProjectManager
 from file_handler import FileHandler
 
@@ -8,6 +9,7 @@ class TimeTracker:
     def __init__(self, project_manager: ProjectManager, file_handler: FileHandler):
         self.project_manager = project_manager
         self.file_handler = file_handler
+        self.db: Session = SessionLocal()
         self.active_timers = {}
 
     def start_timer(self):
@@ -53,25 +55,21 @@ class TimeTracker:
         end_time = datetime.now()
         duration_hours = (end_time - start_time).total_seconds() / 3600
 
-        sql = """
-            INSERT INTO time_entries (project_id, task, start_time, end_time, duration_hours)
-            VALUES (%s, %s, %s, %s, %s)
-        """
+        new_entry = TimeEntry(
+            project_id=project_id_to_stop,
+            task=timer_data['task'],
+            start_time=start_time,
+            end_time=end_time,
+            duration_hours=duration_hours
+        )
         try:
-            with get_db_connection() as conn:
-                with conn.cursor() as cur:
-                    cur.execute(sql, (
-                        project_id_to_stop, 
-                        timer_data['task'], 
-                        start_time, 
-                        end_time, 
-                        duration_hours
-                    ))
-                conn.commit()
+            self.db.add(new_entry)
+            self.db.commit()
             self.file_handler.log_activity(f"Logged entry for project ID {project_id_to_stop}. Duration: {duration_hours:.2f} hours.")
             print(f"Timer stopped. Logged {duration_hours:.2f} hours for project ID {project_id_to_stop}.")
-        except (Exception, psycopg2.Error) as error:
-            print("Error while logging time entry:", error)
+        except Exception as e:
+            self.db.rollback()
+            print("Error while logging time entry:", e)
             self.active_timers[project_id_to_stop] = timer_data
 
     def view_active_timers(self):

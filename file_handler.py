@@ -24,7 +24,7 @@ class FileHandler:
         file_name = f"Invoice_{client_name_safe}_{project_name_safe}_{invoice_date}.csv"
         file_path = os.path.join(config.INVOICES_DIR, file_name)
 
-        total_hours = sum(entry['duration_hours'] for entry in time_entries)
+        total_hours = sum(entry.duration_hours for entry in time_entries)
         total_cost = total_hours * project_details['hourly_rate']
 
         try:
@@ -48,22 +48,22 @@ class FileHandler:
                 writer.writerow(project_info_row)
 
                 for entry in time_entries:
-                    cost = entry['duration_hours'] * project_details['hourly_rate']
+                    cost = entry.duration_hours * project_details['hourly_rate']
                     task_row = [
                         '', '', '', '',
-                        entry['task'],
-                        entry['start_time'].strftime('%Y-%m-%d %H:%M'),
-                        entry['end_time'].strftime('%Y-%m-%d %H:%M'),
-                        f"{entry['duration_hours']:.2f}",
-                        f"{cost:.2f}",
+                        entry.task,
+                        entry.start_time.strftime('%Y-%m-%d %H:%M'),
+                        entry.end_time.strftime('%Y-%m-%d %H:%M'),
+                        f"{float(entry.duration_hours):.2f}",
+                        f"{float(cost):.2f}",
                         '', ''
                     ]
                     writer.writerow(task_row)
                 
                 totals_row = [
                     '', '', '', '', '', '', '', '', '',
-                    f"{total_hours:.2f}",
-                    f"${total_cost:.2f}"
+                    f"{float(total_hours):.2f}",
+                    f"${float(total_cost):.2f}"
                 ]
                 writer.writerow(totals_row)
             
@@ -89,4 +89,3 @@ class FileHandler:
         except Exception as e:
             print(f"An unexpected error occurred while reading the file: {e}")
             return None
-        

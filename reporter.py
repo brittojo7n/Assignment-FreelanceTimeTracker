@@ -1,6 +1,7 @@
 import pandas as pd
-import psycopg2
-from database import get_db_connection
+from sqlalchemy.orm import Session
+from database import SessionLocal, engine
+from models import Project, TimeEntry
 from project_manager import ProjectManager
 from file_handler import FileHandler
 
@@ -8,6 +9,7 @@ class Reporter:
     def __init__(self, project_manager: ProjectManager, file_handler: FileHandler):
         self.project_manager = project_manager
         self.file_handler = file_handler
+        self.db: Session = SessionLocal()
 
     def generate_project_summary(self):
         if not self.project_manager.list_projects():
@@ -18,42 +20,33 @@ class Reporter:
             print("Invalid input. Please enter a number.")
             return
 
-        sql_project = "SELECT name, hourly_rate FROM projects WHERE id = %s"
-        sql_entries = "SELECT task, start_time, end_time, duration_hours FROM time_entries WHERE project_id = %s ORDER BY start_time"
-        
         try:
-            with get_db_connection() as conn:
-                with conn.cursor() as cur:
-                    cur.execute(sql_project, (project_id,))
-                    project = cur.fetchone()
-                    if not project:
-                        print("Invalid project ID.")
-                        return
-                    
-                    cur.execute(sql_entries, (project_id,))
-                    entries = cur.fetchall()
-
-            project_details = {'name': project[0], 'hourly_rate': float(project[1])}
+            project = self.db.query(Project).filter(Project.id == project_id).one_or_none()
+            if not project:
+                print("Invalid project ID.")
+                return
+            
+            entries = self.db.query(TimeEntry).filter(TimeEntry.project_id == project_id).order_by(TimeEntry.start_time).all()
             
             if not entries:
-                print(f"No time entries found for project '{project_details['name']}'.")
+                print(f"No time entries found for project '{project.name}'.")
                 return
 
-            total_hours = sum(float(e[3]) for e in entries)
-            total_cost = total_hours * project_details['hourly_rate']
+            total_hours = sum(entry.duration_hours for entry in entries)
+            total_cost = total_hours * project.hourly_rate
 
-            print(f"\n--- Summary for Project: {project_details['name']} ---")
-            print(f"Hourly Rate: ${project_details['hourly_rate']:.2f}/hr")
+            print(f"\n--- Summary for Project: {project.name} ---")
+            print(f"Hourly Rate: ${project.hourly_rate:.2f}/hr")
             print("\nTime Entries:")
             for entry in entries:
-                print(f"  - Task: {entry[0]}, Duration: {float(entry[3]):.2f} hours (from {entry[1].strftime('%Y-%m-%d %H:%M')} to {entry[2].strftime('%H:%M')})")
+                print(f"  - Task: {entry.task}, Duration: {float(entry.duration_hours):.2f} hours (from {entry.start_time.strftime('%Y-%m-%d %H:%M')} to {entry.end_time.strftime('%H:%M')})")
 
             print("\n--- Totals ---")
-            print(f"Total Billable Hours: {total_hours:.2f}")
-            print(f"Total Project Cost: ${total_cost:.2f}")
+            print(f"Total Billable Hours: {float(total_hours):.2f}")
+            print(f"Total Project Cost: ${float(total_cost):.2f}")
             print("--------------")
-            self.file_handler.log_activity(f"Generated summary for project '{project_details['name']}'.")
-        except (Exception, psycopg2.Error) as error:
+            self.file_handler.log_activity(f"Generated summary for project '{project.name}'.")
+        except Exception as error:
             print("Error generating summary:", error)
 
     def export_invoice_csv(self):
@@ -65,80 +58,61 @@ class Reporter:
             print("Invalid input. Please enter a number.")
             return
 
-        sql_project = "SELECT p.name, p.hourly_rate, c.name FROM projects p JOIN clients c ON p.client_id = c.id WHERE p.id = %s"
-        sql_entries = "SELECT task, start_time, end_time, duration_hours FROM time_entries WHERE project_id = %s ORDER BY start_time"
-
         try:
-            with get_db_connection() as conn:
-                with conn.cursor() as cur:
-                    cur.execute(sql_project, (project_id,))
-                    project = cur.fetchone()
-                    if not project:
-                        print("Invalid project ID.")
-                        return
-                    
-                    cur.execute(sql_entries, (project_id,))
-                    entries_data = cur.fetchall()
-
-            project_details = {'name': project[0], 'hourly_rate': float(project[1])}
-            client_name = project[2]
-            
-            if not entries_data:
-                print(f"No time entries to invoice for project '{project_details['name']}'.")
+            project = self.db.query(Project).filter(Project.id == project_id).one_or_none()
+            if not project:
+                print("Invalid project ID.")
                 return
             
-            time_entries = [{'task': e[0], 'start_time': e[1], 'end_time': e[2], 'duration_hours': float(e[3])} for e in entries_data]
+            entries = self.db.query(TimeEntry).filter(TimeEntry.project_id == project_id).order_by(TimeEntry.start_time).all()
             
-            self.file_handler.export_invoice_to_csv(project_details, client_name, time_entries)
+            if not entries:
+                print(f"No time entries to invoice for project '{project.name}'.")
+                return
+            
+            project_details = {'name': project.name, 'hourly_rate': project.hourly_rate}
+            self.file_handler.export_invoice_to_csv(project_details, project.client.name, entries)
 
-        except (Exception, psycopg2.Error) as error:
+        except Exception as error:
             print("Error exporting invoice:", error)
 
     def import_time_entries_from_json(self):
         file_path = input("Enter the full path to the JSON file to import: ")
-        new_entries = self.file_handler.import_json_file(file_path)
-        if new_entries is None:
+        new_entries_data = self.file_handler.import_json_file(file_path)
+        if new_entries_data is None:
             return
 
-        sql = "INSERT INTO time_entries (project_id, task, start_time, end_time, duration_hours) VALUES (%s, %s, %s, %s, %s)"
         imported_count = 0
-        
         try:
-            with get_db_connection() as conn:
-                with conn.cursor() as cur:
-                    for entry in new_entries:
-                        if all(k in entry for k in ['project_id', 'task', 'start_time', 'end_time', 'duration_hours']):
-                            cur.execute(sql, (
-                                entry['project_id'],
-                                entry['task'],
-                                entry['start_time'],
-                                entry['end_time'],
-                                entry['duration_hours']
-                            ))
-                            imported_count += 1
-                        else:
-                            print(f"Skipping invalid entry: {entry}")
-                conn.commit()
+            for entry_data in new_entries_data:
+                if all(k in entry_data for k in ['project_id', 'task', 'start_time', 'end_time', 'duration_hours']):
+                    new_entry = TimeEntry(**entry_data)
+                    self.db.add(new_entry)
+                    imported_count += 1
+                else:
+                    print(f"Skipping invalid entry: {entry_data}")
+            self.db.commit()
             self.file_handler.log_activity(f"Imported {imported_count} time entries from {file_path}.")
             print(f"Successfully imported {imported_count} time entries into the database.")
-        except (Exception, psycopg2.Error) as error:
+        except Exception as error:
+            self.db.rollback()
             print("Error during database import:", error)
 
     def analyze_data(self):
-        sql = """
-            SELECT p.name AS project_name, te.duration_hours, p.hourly_rate, te.start_time
-            FROM time_entries te
-            JOIN projects p ON te.project_id = p.id
-        """
-        try:
-            with get_db_connection() as conn:
-                df = pd.read_sql(sql, conn)
+        query = self.db.query(
+            Project.name.label("project_name"),
+            TimeEntry.duration_hours,
+            Project.hourly_rate,
+            TimeEntry.start_time
+        ).join(Project, TimeEntry.project_id == Project.id).statement
 
+        try:
+            df = pd.read_sql(query, engine)
             if df.empty:
                 print("No time entries to analyze.")
                 return
 
-            df['cost'] = df['duration_hours'] * df['hourly_rate']
+            df['cost'] = df['duration_hours'].astype(float) * df['hourly_rate'].astype(float)
             df['date'] = pd.to_datetime(df['start_time']).dt.date
 
             print("\n--- Data Analysis ---")
@@ -156,5 +130,5 @@ class Reporter:
             
             print("\n---------------------")
             self.file_handler.log_activity("Performed data analysis.")
-        except (Exception, psycopg2.Error) as error:
+        except Exception as error:
             print("Error during data analysis:", error)

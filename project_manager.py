@@ -1,5 +1,7 @@
-import psycopg2
-from database import get_db_connection
+from sqlalchemy.orm import Session
+from sqlalchemy.exc import IntegrityError
+from database import SessionLocal
+from models import Project
 from client_manager import ClientManager
 from file_handler import FileHandler
 
@@ -7,6 +9,7 @@ class ProjectManager:
     def __init__(self, client_manager: ClientManager, file_handler: FileHandler):
         self.client_manager = client_manager
         self.file_handler = file_handler
+        self.db: Session = SessionLocal()
 
     def add_project(self):
         if not self.client_manager.list_clients():
@@ -26,38 +29,30 @@ class ProjectManager:
             print("Invalid hourly rate. Please enter a number.")
             return
 
-        sql = "INSERT INTO projects (name, hourly_rate, client_id) VALUES (%s, %s, %s)"
+        new_project = Project(name=project_name, hourly_rate=hourly_rate, client_id=client_id)
         try:
-            with get_db_connection() as conn:
-                with conn.cursor() as cur:
-                    cur.execute(sql, (project_name, hourly_rate, client_id))
-                conn.commit()
+            self.db.add(new_project)
+            self.db.commit()
             self.file_handler.log_activity(f"Added project: {project_name} for client ID {client_id}")
             print(f"Project '{project_name}' added successfully.")
-        except (Exception, psycopg2.Error) as error:
-            print("Error while adding project:", error)
-            print("Please ensure the Client ID is valid.")
+        except IntegrityError:
+            self.db.rollback()
+            print("Error: A database integrity issue occurred. Please ensure the Client ID is valid.")
+        except Exception as e:
+            self.db.rollback()
+            print("Error while adding project:", e)
 
     def list_projects(self):
-        sql = """
-            SELECT p.id, p.name, c.name, p.hourly_rate 
-            FROM projects p
-            JOIN clients c ON p.client_id = c.id
-            ORDER BY p.name
-        """
         try:
-            with get_db_connection() as conn:
-                with conn.cursor() as cur:
-                    cur.execute(sql)
-                    projects = cur.fetchall()
+            projects = self.db.query(Project).order_by(Project.name).all()
             if not projects:
                 print("No projects found.")
                 return False
             print("\n--- Projects ---")
             for p in projects:
-                print(f"ID: {p[0]}, Name: {p[1]}, Client: {p[2]}, Rate: ${p[3]:.2f}/hr")
+                print(f"ID: {p.id}, Name: {p.name}, Client: {p.client.name}, Rate: ${p.hourly_rate:.2f}/hr")
             print("----------------")
             return True
-        except (Exception, psycopg2.Error) as error:
-            print("Error while fetching projects:", error)
+        except Exception as e:
+            print("Error while fetching projects:", e)
             return False

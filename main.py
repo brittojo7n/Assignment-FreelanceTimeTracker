@@ -7,7 +7,7 @@ from reporter import Reporter
 from ui import UIManager
 
 def main():
-    database.initialize_database()
+    database.init_db()
     file_handler = FileHandler()
     
     client_manager = ClientManager(file_handler)
