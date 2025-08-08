@@ -1,6 +1,6 @@
 /venv/
 /.env
-/activity_log.txt
+/*.txt
 /invoices/
 /__pycache__/
 /time_entries/
