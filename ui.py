@@ -20,7 +20,7 @@ class UIManager:
             "6": "Exit"
         }
         while True:
-            print("\n===== Freelance Time Tracker (DB + File) =====")
+            print("\n===== Freelance Time Tracker =====")
             for key, value in menu_options.items():
                 print(f"{key}. {value}")
             choice = input("Enter your choice: ")
